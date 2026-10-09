@@ -342,6 +342,22 @@
       { code: '5352', lat: 59.0780, lng: 5.1680 }
     ];
 
+    function getAreaRows(area) {
+      const rows = Array.isArray(area && area.rows) ? area.rows : Array.isArray(area && area.months) ? area.months : [];
+      return [...rows].sort((a, b) => {
+        const aKey = a && (a.month || a.date || '');
+        const bKey = b && (b.month || b.date || '');
+        if (!aKey || !bKey) return 0;
+        return new Date(aKey + '-01T00:00:00') - new Date(bKey + '-01T00:00:00');
+      });
+    }
+
+    function getLatestEntry(area) {
+      const rows = getAreaRows(area);
+      if (!rows.length) return null;
+      return rows[rows.length - 1];
+    }
+
     function color(v) {
       if (v === null || v === undefined || Number.isNaN(v)) return '#c7d9ee';
       const t = Math.max(0, Math.min(1, (v - 20000) / 36000));
@@ -369,7 +385,9 @@
 
       locations.forEach((loc) => {
         const areaData = data.find((d) => d.code === loc.code);
-        const price = areaData && areaData.months && areaData.months.length ? areaData.months[areaData.months.length - 1].price : null;
+        const latest = getLatestEntry(areaData);
+        const price = Number(latest && (latest.price ?? latest.medianSqm ?? null));
+        const sales = latest ? (latest.n ?? latest.sales ?? 0) : 0;
         const bgColor = color(price);
         const isSelected = loc.code === selectedArea;
         const iconSize = isSelected ? 32 : 24;
@@ -407,7 +425,7 @@
               <dt>Pris per m²</dt>
               <dd>${fmt(price)}</dd>
               <dt>Antall salg</dt>
-              <dd>${areaData && areaData.months && areaData.months.length ? areaData.months[areaData.months.length - 1].sales : '–'}</dd>
+              <dd>${sales}</dd>
             </dl>
           </div>
         `;
@@ -428,16 +446,22 @@
 
     function renderOverview() {
       const area = data.find((item) => item.code === selectedArea);
-      if (!area || !Array.isArray(area.months)) {
+      if (!area) {
         el('result').innerHTML = '<div class="month-card"><strong>Ingen data tilgjengelig.</strong></div>';
         return;
       }
 
-      const entries = area.months.slice(-selectedPeriod);
+      const rows = getAreaRows(area);
+      if (!rows.length) {
+        el('result').innerHTML = '<div class="month-card"><strong>Ingen data tilgjengelig.</strong></div>';
+        return;
+      }
+
+      const entries = rows.slice(-selectedPeriod);
       el('result').innerHTML = entries.map((entry, index) => {
-        const monthIndex = (new Date().getMonth() - entries.length + 1 + index + 12) % 12;
-        const year = new Date().getFullYear() - (selectedPeriod > 12 && index < entries.length - 12 ? 1 : 0);
-        const label = `${monthNames[monthIndex]} ${year}`;
+        const monthKey = entry.month || entry.date;
+        const date = monthKey ? new Date(monthKey + '-01T00:00:00') : new Date();
+        const label = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
 
         return `
           <details class="month-card" ${index === entries.length - 1 ? 'open' : ''}>
@@ -445,11 +469,11 @@
             <dl>
               <div>
                 <dt>Pris per m²</dt>
-                <dd>${fmt(entry.price)}</dd>
+                <dd>${fmt(Number(entry.price ?? entry.medianSqm ?? 0))}</dd>
               </div>
               <div>
                 <dt>Antall salg</dt>
-                <dd>${entry.sales}</dd>
+                <dd>${entry.n ?? entry.sales ?? 0}</dd>
               </div>
             </dl>
           </details>
@@ -458,9 +482,10 @@
     }
 
     function populateAreaSelect() {
-      const list = [...new Set(data.filter((d) => /^\d/.test(d.code)).map((d) => d.code))].sort();
+      const list = [...new Set(data.map((d) => d.code))].sort();
       const select = el('area');
       select.innerHTML = list.map((code) => `<option value="${code}">${code}</option>`).join('');
+      if (!list.includes(selectedArea)) selectedArea = list[0] || '5353';
       select.value = selectedArea;
       select.addEventListener('change', (event) => {
         selectedArea = event.target.value;
@@ -482,7 +507,12 @@
     fetch('data.json')
       .then((response) => response.json())
       .then((payload) => {
-        data = payload;
+        data = Array.isArray(payload) ? payload : [];
+        if (!data.length) {
+          el('result').innerHTML = '<div class="month-card"><strong>Kunne ikke laste inn data.</strong></div>';
+          return;
+        }
+
         initMap();
         populateAreaSelect();
         bindPeriodButtons();
