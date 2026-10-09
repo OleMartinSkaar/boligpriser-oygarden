@@ -17,7 +17,8 @@
       --muted: #5d7285;
       --brand: #123c65;
       --brand-strong: #0d2d4c;
-      --accent: #f0b64d;
+      --brand-soft: #dfeaf7;
+      --brand-light: #b9d1eb;
       --shadow: 0 12px 24px rgba(18,60,101,.08);
     }
 
@@ -342,9 +343,12 @@
     ];
 
     function color(v) {
-      if (v === null || v === undefined || Number.isNaN(v)) return '#aebac4';
+      if (v === null || v === undefined || Number.isNaN(v)) return '#c7d9ee';
       const t = Math.max(0, Math.min(1, (v - 20000) / 36000));
-      return `rgb(${Math.round(196 - 178 * t)}, ${Math.round(223 - 163 * t)}, ${Math.round(237 - 136 * t)})`;
+      const r = Math.round(188 + (42 * t));
+      const g = Math.round(213 + (10 * t));
+      const b = Math.round(240 - (15 * t));
+      return `rgb(${r}, ${g}, ${b})`;
     }
 
     function initMap() {
@@ -375,7 +379,7 @@
             width: ${iconSize}px;
             height: ${iconSize}px;
             background: ${bgColor};
-            border: ${isSelected ? '4px solid #f0b64d' : '2px solid white'};
+            border: ${isSelected ? '4px solid #123c65' : '2px solid rgba(255,255,255,0.96)'};
             border-radius: 50%;
             display: flex;
             align-items: center;
